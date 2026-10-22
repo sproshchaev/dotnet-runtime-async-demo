@@ -2,6 +2,7 @@ name: check
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -12,8 +13,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '11.0.x'
-          dotnet-quality: 'preview'
+          global-json-file: global.json
       - name: Probe and check invariants
         run: ./run.sh
       - uses: actions/upload-artifact@v7
@@ -24,34 +24,23 @@ jobs:
 
   bench:
     runs-on: ubuntu-24.04
-    needs: probe
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: benchmark-report-outofproc
+            args: --filter "*" --exporters github
+          - name: benchmark-report-inprocess
+            args: --filter "*" --exporters github --inProcess
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '11.0.x'
-          dotnet-quality: 'preview'
-      - name: BenchmarkDotNet (timings for information, not checked)
-        run: dotnet run -c Release --project bench/AsyncBench -- --filter "*" --exporters github
+          global-json-file: global.json
+      - name: BenchmarkDotNet ${{ matrix.name }} (timings for information, not checked)
+        run: dotnet run -c Release --project bench/AsyncBench -- ${{ matrix.args }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: benchmark-report
-          path: BenchmarkDotNet.Artifacts/results/
-
-  bench-outofproc:
-    runs-on: ubuntu-24.04
-    needs: probe
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: '11.0.x'
-          dotnet-quality: 'preview'
-      - name: BenchmarkDotNet out of process (timings for information, not checked)
-        run: dotnet run -c Release --project bench/AsyncBench -- --filter "*ChainBenchmarks*" --exporters github --outofproc
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: benchmark-report-outofproc
+          name: ${{ matrix.name }}
           path: BenchmarkDotNet.Artifacts/results/

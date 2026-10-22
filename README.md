@@ -9,7 +9,7 @@ Article (in Russian): https://habr.com/ru/companies/otus/articles/1088900/
 
 ## Run
 
-Requires .NET 11 SDK (RC2 or later) and Python 3.
+Requires .NET 11 SDK (RC2 or later, pinned in `global.json`) and Python 3.
 
 ```bash
 ./run.sh
@@ -29,6 +29,7 @@ Filled in from the CI run.
 
 ## Structure
 
+- `shared/Chains.cs` — the async chains measured by both the probe and the benchmarks
 - `src/AsyncProbe` — live stack trace frames and allocated bytes per call, classic vs runtime async
 - `src/SizeProbe` — ten nested async methods, built twice to compare assembly size
 - `bench/AsyncBench` — BenchmarkDotNet: completed and yielding chains, exception at depth 1, 10, 30

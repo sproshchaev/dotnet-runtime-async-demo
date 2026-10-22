@@ -8,48 +8,39 @@ using System.Runtime.CompilerServices;
 var stackDir = args.Length > 0 ? args[0] : "results";
 Directory.CreateDirectory(stackDir);
 
-PrintStacks(stackDir);
-PrintAllocations();
+PrintStack("classic", Classic.OuterAsync().GetAwaiter().GetResult(), stackDir);
+PrintStack("runtime", Runtime.OuterAsync().GetAwaiter().GetResult(), stackDir);
 
-static void PrintStacks(string dir)
+Measure("completed.classic", Chains.ClassicCompletedOuter);
+Measure("completed.runtime", Chains.RuntimeCompletedOuter);
+Measure("yielding.classic", Chains.ClassicYieldingOuter, iterations: 200_000);
+Measure("yielding.runtime", Chains.RuntimeYieldingOuter, iterations: 200_000);
+Measure("throw30.classic", () => Chains.ClassicThrowAsync(30, yield: false), iterations: 20_000);
+Measure("throw30.runtime", () => Chains.RuntimeThrowAsync(30, yield: false), iterations: 20_000);
+
+static void PrintStack(string name, StackTrace trace, string dir)
 {
-    string classic = Classic.OuterAsync().GetAwaiter().GetResult();
-    string runtime = Runtime.OuterAsync().GetAwaiter().GetResult();
-    File.WriteAllText(Path.Combine(dir, "stack_classic.txt"), classic);
-    File.WriteAllText(Path.Combine(dir, "stack_runtime.txt"), runtime);
+    File.WriteAllText(Path.Combine(dir, $"stack_{name}.txt"), trace.ToString());
 
-    Console.WriteLine($"stack.classic.frames {Frames(classic)}");
-    Console.WriteLine($"stack.runtime.frames {Frames(runtime)}");
-    Console.WriteLine($"stack.classic.builder_frames {BuilderFrames(classic)}");
-    Console.WriteLine($"stack.runtime.builder_frames {BuilderFrames(runtime)}");
+    // Frames are classified by declaring type, not by the localized text of ToString().
+    int builderFrames = trace.GetFrames().Count(f =>
+        f.GetMethod()?.DeclaringType?.FullName?.StartsWith("System.Runtime.CompilerServices.AsyncMethodBuilderCore") == true);
+    Console.WriteLine($"stack.{name}.frames {trace.FrameCount}");
+    Console.WriteLine($"stack.{name}.builder_frames {builderFrames}");
 }
 
-static int Frames(string trace) =>
-    trace.Split('\n', StringSplitOptions.RemoveEmptyEntries).Count(l => l.TrimStart().StartsWith("at "));
-
-static int BuilderFrames(string trace) =>
-    trace.Split('\n').Count(l => l.Contains("AsyncMethodBuilderCore"));
-
-static void PrintAllocations()
-{
-    Measure("completed.classic", () => Chains.ClassicCompletedOuter().GetAwaiter().GetResult());
-    Measure("completed.runtime", () => Chains.RuntimeCompletedOuter().GetAwaiter().GetResult());
-    Measure("yielding.classic", () => Chains.ClassicYieldingOuter().GetAwaiter().GetResult(), iterations: 200_000);
-    Measure("yielding.runtime", () => Chains.RuntimeYieldingOuter().GetAwaiter().GetResult(), iterations: 200_000);
-    Measure("throw30.classic", () => Chains.Invoke(Chains.ClassicThrowAsync(30)), iterations: 20_000);
-    Measure("throw30.runtime", () => Chains.Invoke(Chains.RuntimeThrowAsync(30)), iterations: 20_000);
-}
-
-static void Measure(string name, Func<int> op, int iterations = 2_000_000)
+static void Measure(string name, Func<Task<int>> op, int iterations = 2_000_000)
 {
     // Warm up twice with a pause, so tiered compilation reaches tier 1 before measuring.
-    for (int i = 0; i < 50_000; i++) op();
+    // Never warm up longer than we measure: throw30 and yielding ops are expensive.
+    int warmup = Math.Min(50_000, iterations);
+    for (int i = 0; i < warmup; i++) Chains.Invoke(op());
     Thread.Sleep(500);
-    for (int i = 0; i < 50_000; i++) op();
+    for (int i = 0; i < warmup; i++) Chains.Invoke(op());
 
     long before = GC.GetTotalAllocatedBytes(precise: true);
     var sw = Stopwatch.StartNew();
-    for (int i = 0; i < iterations; i++) op();
+    for (int i = 0; i < iterations; i++) Chains.Invoke(op());
     sw.Stop();
     long after = GC.GetTotalAllocatedBytes(precise: true);
 
@@ -62,114 +53,44 @@ static void Measure(string name, Func<int> op, int iterations = 2_000_000)
 static class Classic
 {
     [RuntimeAsyncMethodGeneration(false)]
-    public static async Task<string> OuterAsync()
+    public static async Task<StackTrace> OuterAsync()
     {
         await Task.CompletedTask;
         return await MiddleAsync();
     }
 
     [RuntimeAsyncMethodGeneration(false)]
-    static async Task<string> MiddleAsync()
+    static async Task<StackTrace> MiddleAsync()
     {
         await Task.CompletedTask;
         return await InnerAsync();
     }
 
     [RuntimeAsyncMethodGeneration(false)]
-    static async Task<string> InnerAsync()
+    static async Task<StackTrace> InnerAsync()
     {
         await Task.CompletedTask;
-        return new StackTrace(fNeedFileInfo: false).ToString();
+        return new StackTrace(fNeedFileInfo: false);
     }
 }
 
 static class Runtime
 {
-    public static async Task<string> OuterAsync()
+    public static async Task<StackTrace> OuterAsync()
     {
         await Task.CompletedTask;
         return await MiddleAsync();
     }
 
-    static async Task<string> MiddleAsync()
+    static async Task<StackTrace> MiddleAsync()
     {
         await Task.CompletedTask;
         return await InnerAsync();
     }
 
-    static async Task<string> InnerAsync()
+    static async Task<StackTrace> InnerAsync()
     {
         await Task.CompletedTask;
-        return new StackTrace(fNeedFileInfo: false).ToString();
-    }
-}
-
-static class Chains
-{
-    static readonly Task<int> s_completed = Task.FromResult(42);
-
-    public static int Invoke(Task<int> task)
-    {
-        try
-        {
-            return task.GetAwaiter().GetResult();
-        }
-        catch (InvalidOperationException)
-        {
-            return -1;
-        }
-    }
-
-    [RuntimeAsyncMethodGeneration(false)]
-    public static async Task<int> ClassicCompletedOuter() => await ClassicCompletedInner();
-
-    [RuntimeAsyncMethodGeneration(false)]
-    static async Task<int> ClassicCompletedInner() => await s_completed;
-
-    public static async Task<int> RuntimeCompletedOuter() => await RuntimeCompletedInner();
-
-    static async Task<int> RuntimeCompletedInner() => await s_completed;
-
-    [RuntimeAsyncMethodGeneration(false)]
-    public static async Task<int> ClassicYieldingOuter() => await ClassicYieldingInner();
-
-    [RuntimeAsyncMethodGeneration(false)]
-    static async Task<int> ClassicYieldingInner()
-    {
-        await Task.Yield();
-        return 42;
-    }
-
-    public static async Task<int> RuntimeYieldingOuter() => await RuntimeYieldingInner();
-
-    static async Task<int> RuntimeYieldingInner()
-    {
-        await Task.Yield();
-        return 42;
-    }
-
-    [RuntimeAsyncMethodGeneration(false)]
-    public static async Task<int> ClassicThrowAsync(int depth)
-    {
-        if (depth == 0)
-            throw new InvalidOperationException("uh oh");
-        return await ClassicThrowAsync(depth - 1);
-    }
-
-    public static async Task<int> RuntimeThrowAsync(int depth)
-    {
-        if (depth == 0)
-            throw new InvalidOperationException("uh oh");
-        return await RuntimeThrowAsync(depth - 1);
-    }
-}
-
-namespace System.Runtime.CompilerServices
-{
-    // Experimental per-method switch recognized by the C# compiler by name and signature.
-    [AttributeUsage(AttributeTargets.Method)]
-    internal sealed class RuntimeAsyncMethodGenerationAttribute(bool runtimeAsync) : Attribute
-    {
-        public bool RuntimeAsync => runtimeAsync;
+        return new StackTrace(fNeedFileInfo: false);
     }
 }

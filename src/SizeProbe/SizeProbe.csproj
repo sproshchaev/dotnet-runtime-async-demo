@@ -2,10 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net11.0</TargetFramework>
     <AssemblyName>SizeProbe</AssemblyName>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <!-- Built twice by run.sh: -p:RuntimeAsync=false and -p:RuntimeAsync=true -->
     <Features Condition="'$(RuntimeAsync)' == 'true'">$(Features);runtime-async=on</Features>
   </PropertyGroup>

@@ -2,13 +2,14 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net11.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <!-- Runtime Async is a preview feature in .NET 11. Methods marked with
          [RuntimeAsyncMethodGeneration(false)] keep the classic compiler lowering,
          so both models run side by side in one process on one runtime. -->
     <Features>$(Features);runtime-async=on</Features>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../shared/Chains.cs" Link="Chains.cs" />
+  </ItemGroup>
 
 </Project>

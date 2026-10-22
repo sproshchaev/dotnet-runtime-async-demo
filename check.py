@@ -35,11 +35,15 @@ def main(expected_path, actual_path):
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
-            left, op, right = line.split()
+            parts = line.split()
+            if len(parts) != 3 or parts[1] not in OPS:
+                print(f"FAIL {line}  (malformed invariant, expected '<left> <op> <right>')")
+                failed += 1
+                continue
+            left, op, right = parts
             try:
                 ok = OPS[op](operand(left, values), operand(right, values))
             except KeyError as missing:
-                ok = False
                 print(f"FAIL {line}  (no value {missing})")
                 failed += 1
                 continue
