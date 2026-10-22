@@ -1,0 +1,20 @@
+# Invariants that must hold on any OS and CPU.
+# Exact numbers are printed by run.sh into results/actual.txt.
+
+# Live stack trace: runtime async shows the real call chain without builder frames
+stack.runtime.frames < stack.classic.frames
+stack.classic.builder_frames > 0
+stack.runtime.builder_frames == 0
+
+# Synchronously completed two-level chain: runtime async does not allocate
+alloc.completed.classic.bytes_per_op > 0
+alloc.completed.runtime.bytes_per_op == 0
+
+# Chain with Task.Yield: runtime async allocates less
+alloc.yielding.runtime.bytes_per_op < alloc.yielding.classic.bytes_per_op
+
+# Exception thrown at depth 30: runtime async allocates less
+alloc.throw30.runtime.bytes_per_op < alloc.throw30.classic.bytes_per_op
+
+# Ten nested async methods: runtime async produces a smaller assembly
+size.runtime.bytes < size.classic.bytes

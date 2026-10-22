@@ -1,0 +1,40 @@
+name: check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '11.0.x'
+          dotnet-quality: 'preview'
+      - name: Probe and check invariants
+        run: ./run.sh
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: results
+          path: results/
+
+  bench:
+    runs-on: ubuntu-24.04
+    needs: probe
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '11.0.x'
+          dotnet-quality: 'preview'
+      - name: BenchmarkDotNet (timings for information, not checked)
+        run: dotnet run -c Release --project bench/AsyncBench -- --filter "*" --exporters github
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: benchmark-report
+          path: BenchmarkDotNet.Artifacts/results/
