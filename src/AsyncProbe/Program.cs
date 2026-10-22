@@ -32,24 +32,24 @@ static int BuilderFrames(string trace) =>
 
 static void PrintAllocations()
 {
-    Measure("completed.classic", () => Chains.ClassicCompletedOuter());
-    Measure("completed.runtime", () => Chains.RuntimeCompletedOuter());
-    Measure("yielding.classic", () => Chains.ClassicYieldingOuter(), iterations: 200_000);
-    Measure("yielding.runtime", () => Chains.RuntimeYieldingOuter(), iterations: 200_000);
+    Measure("completed.classic", () => Chains.ClassicCompletedOuter().GetAwaiter().GetResult());
+    Measure("completed.runtime", () => Chains.RuntimeCompletedOuter().GetAwaiter().GetResult());
+    Measure("yielding.classic", () => Chains.ClassicYieldingOuter().GetAwaiter().GetResult(), iterations: 200_000);
+    Measure("yielding.runtime", () => Chains.RuntimeYieldingOuter().GetAwaiter().GetResult(), iterations: 200_000);
     Measure("throw30.classic", () => Chains.Invoke(Chains.ClassicThrowAsync(30)), iterations: 20_000);
     Measure("throw30.runtime", () => Chains.Invoke(Chains.RuntimeThrowAsync(30)), iterations: 20_000);
 }
 
-static void Measure(string name, Func<Task<int>> op, int iterations = 2_000_000)
+static void Measure(string name, Func<int> op, int iterations = 2_000_000)
 {
     // Warm up twice with a pause, so tiered compilation reaches tier 1 before measuring.
-    for (int i = 0; i < 50_000; i++) op().GetAwaiter().GetResult();
+    for (int i = 0; i < 50_000; i++) op();
     Thread.Sleep(500);
-    for (int i = 0; i < 50_000; i++) op().GetAwaiter().GetResult();
+    for (int i = 0; i < 50_000; i++) op();
 
     long before = GC.GetTotalAllocatedBytes(precise: true);
     var sw = Stopwatch.StartNew();
-    for (int i = 0; i < iterations; i++) op().GetAwaiter().GetResult();
+    for (int i = 0; i < iterations; i++) op();
     sw.Stop();
     long after = GC.GetTotalAllocatedBytes(precise: true);
 
