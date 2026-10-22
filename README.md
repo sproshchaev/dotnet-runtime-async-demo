@@ -25,7 +25,17 @@ dotnet run -c Release --project bench/AsyncBench -- --filter "*"
 
 ## Results
 
-CI run on GitHub Actions `ubuntu-24.04`, .NET SDK 11.0.100-rc.2.26504.105, BenchmarkDotNet 0.16.0-preview.2. Allocations are stable between runs, timings are not and are shown for orientation only.
+CI run on GitHub Actions `ubuntu-24.04`, .NET SDK 11.0.100-rc.2.26504.105, BenchmarkDotNet 0.16.0-preview.2, AMD EPYC 9V74 (x64) in both benchmark modes. Allocations are stable between runs, timings are not and are shown for orientation only.
+
+Source run: https://github.com/sproshchaev/dotnet-runtime-async-demo/actions/runs/39737374014 (commit `82e5cb8`, artifacts `results`, `benchmark-report-outofproc`, `benchmark-report-inprocess`).
+
+How each table was produced:
+
+- stack traces and in-process probe allocations: `./run.sh`, values from `results/actual.txt`; allocations are `GC.GetTotalAllocatedBytes(precise: true)` for the whole process divided by the number of calls;
+- benchmarks out of process: `dotnet run -c Release --project bench/AsyncBench -- --filter "*" --exporters github`, column `Allocated` from `MemoryDiagnoser`;
+- benchmarks in process: the same command with `--inProcess`.
+
+Matching allocations in one environment do not prove identical behaviour in every application.
 
 Live stack trace from three nested async methods (`src/AsyncProbe`, files `stack_classic.txt` and `stack_runtime.txt` in the `results` artifact):
 
