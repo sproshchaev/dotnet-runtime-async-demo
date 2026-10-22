@@ -6,12 +6,15 @@ using BenchmarkDotNet.Toolchains.InProcess.Emit;
 using System.Runtime.CompilerServices;
 
 // dotnet run -c Release --project bench/AsyncBench -- --filter "*"
-// In-process toolchain: classic and runtime-async methods run on the same .NET 11 runtime
+// Default: in-process toolchain. Add --outofproc to run every benchmark in a separate
+// generated process, as BenchmarkDotNet does by default.
+// In both modes classic and runtime-async methods run on the same .NET 11 runtime
 // and differ only in how the compiler lowers them.
-var config = DefaultConfig.Instance
-    .AddJob(Job.Default.WithToolchain(InProcessEmitToolchain.Instance))
-    .WithOptions(ConfigOptions.DisableOptimizationsValidator);
-BenchmarkSwitcher.FromAssembly(typeof(ChainBenchmarks).Assembly).Run(args, config);
+bool outOfProc = args.Contains("--outofproc");
+var job = outOfProc ? Job.Default : Job.Default.WithToolchain(InProcessEmitToolchain.Instance);
+var config = DefaultConfig.Instance.AddJob(job).WithOptions(ConfigOptions.DisableOptimizationsValidator);
+BenchmarkSwitcher.FromAssembly(typeof(ChainBenchmarks).Assembly)
+    .Run(args.Where(a => a != "--outofproc").ToArray(), config);
 
 [MemoryDiagnoser(false)]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]

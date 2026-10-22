@@ -38,3 +38,20 @@ jobs:
         with:
           name: benchmark-report
           path: BenchmarkDotNet.Artifacts/results/
+
+  bench-outofproc:
+    runs-on: ubuntu-24.04
+    needs: probe
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '11.0.x'
+          dotnet-quality: 'preview'
+      - name: BenchmarkDotNet out of process (timings for information, not checked)
+        run: dotnet run -c Release --project bench/AsyncBench -- --filter "*ChainBenchmarks*" --exporters github --outofproc
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: benchmark-report-outofproc
+          path: BenchmarkDotNet.Artifacts/results/
